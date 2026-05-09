@@ -1,56 +1,61 @@
 const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
+const mongoose = require('mongoose');
 const cors = require('cors');
-const { exec } = require('child_process');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
 
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
+// MONGO ATLAS STRING YAHAN DALNA HAI
+mongoose.connect('PASTE_YOUR_ATLAS_STRING_HERE/vedaz')
+.then(() => console.log('MongoDB Atlas connected ✅'))
+.catch(err => console.log('MongoDB Error:', err));
+
+// Expert Schema
+const expertSchema = new mongoose.Schema({
+  name: String,
+  expertise: String,
+  price: Number,
+  rating: Number,
+  availability: [String]
+});
+const Expert = mongoose.model('Expert', expertSchema);
+
+// Booking Schema
+const bookingSchema = new mongoose.Schema({
+  expertId: String,
+  expertName: String,
+  userName: String,
+  userEmail: String,
+  slot: String,
+  date: { type: Date, default: Date.now }
+});
+const Booking = mongoose.model('Booking', bookingSchema);
+
+// GET all experts - Frontend yahi call karta hai
+app.get('/api/experts', async (req, res) => {
+  try {
+    const experts = await Expert.find();
+    res.json(experts);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// VEDAZ Voice Assistant Routes - For Internship
-app.get('/welcome', (req, res) => {
-    res.json({ reply: "Welcome sir! VEDAZ v2.0 Node.js backend online." });
+// POST booking
+app.post('/api/bookings', async (req, res) => {
+  try {
+    const booking = new Booking(req.body);
+    await booking.save();
+    res.json({ message: 'Booking successful', booking });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.get('/ask', (req, res) => {
-    const query = req.query.query.toLowerCase();
-    console.log('Voice Command:', query);
-    
-    if(query.includes('chrome')) {
-        exec('start chrome');
-        return res.json({ reply: "Chrome khol diya sir", action: "" });
-    }
-    if(query.includes('notepad')) {
-        exec('start notepad');
-        return res.json({ reply: "Notepad khol diya sir", action: "" });
-    }
-    if(query.includes('band') || query.includes('stop')) {
-        io.emit('vedaz-stop'); // Real-time stop signal to frontend
-        return res.json({ reply: "VEDAZ offline ja raha hai", action: "stop" });
-    }
-    res.json({ reply: `Command received: ${query} - Processing`, action: "" });
+app.get('/', (req, res) => {
+    res.json({ reply: "VEDAZ Booking Backend Online" });
 });
 
-// Socket.io for Real-time Updates - Internship brownie points
-io.on('connection', (socket) => {
-    console.log('VEDAZ Client connected:', socket.id);
-    
-    // Real-time voice command broadcast
-    socket.on('voice-command', (data) => {
-        console.log('Voice command via socket:', data);
-        socket.broadcast.emit('command-executed', data);
-    });
-    
-    socket.on('disconnect', () => {
-        console.log('Client disconnected');
-    });
-});
-
-server.listen(5000, () => console.log('VEDAZ Node.js + Socket.io running on http://localhost:5000'));
+const PORT = 5000;
+app.listen(PORT, () => console.log(`VEDAZ Backend running on http://localhost:${PORT}`));
